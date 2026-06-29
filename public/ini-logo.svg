@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 126 40" fill="none">
+  <rect x="0" y="2" width="36" height="36" rx="10" fill="#7637D0" />
+  <rect x="9.5" y="11" width="4.5" height="18" rx="2.25" fill="#ffffff" />
+  <rect x="17" y="11" width="4.5" height="18" rx="2.25" fill="#ffffff" opacity="0.5" />
+  <rect x="24.5" y="11" width="4.5" height="18" rx="2.25" fill="#ffffff" />
+  <text x="46" y="27" font-family="'Bricolage Grotesque','Inter',Arial,sans-serif" font-size="22" font-weight="700" fill="#0f172a" letter-spacing="0.5">INI</text>
+</svg>
