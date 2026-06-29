@@ -1,0 +1,218 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { BRANCHES, brand } from '../config/brand';
+import { useStore } from '../state/store';
+import { formatCurrency, formatTime } from '../utils/format';
+import { BrandHeader } from '../components/BrandHeader';
+import { MoneyInput } from '../components/MoneyInput';
+import { CheckCircleIcon } from '../components/icons';
+
+type LastOp = {
+  id: string;
+  customerName: string;
+  vehicleModel: string;
+  plate: string;
+  amount: number;
+  country: 'AR' | 'CL';
+  createdAt: string;
+};
+
+export function POS() {
+  const country = useStore((s) => s.country);
+  const customers = useStore((s) => s.customers);
+  const vehicles = useStore((s) => s.vehicles);
+  const generatePreauth = useStore((s) => s.generatePreauth);
+
+  const [branch, setBranch] = useState(BRANCHES[country][0]);
+  const [customerId, setCustomerId] = useState('');
+  const [vehicleId, setVehicleId] = useState('');
+  const [amount, setAmount] = useState<number | null>(null);
+  const [rentalDays, setRentalDays] = useState(3);
+  const [lastOp, setLastOp] = useState<LastOp | null>(null);
+  const resetTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  // Al cambiar de país, reseteamos sucursal y vehículo (cambian las opciones).
+  useEffect(() => {
+    setBranch(BRANCHES[country][0]);
+    setVehicleId('');
+  }, [country]);
+
+  const branchVehicles = useMemo(
+    () => vehicles.filter((v) => v.country === country && v.branch === branch),
+    [vehicles, country, branch],
+  );
+
+  const invalid = !customerId || !vehicleId || amount === null || amount <= 0 || rentalDays < 1;
+
+  const handleGenerate = () => {
+    if (invalid || amount === null) return;
+    const reservationCode = `HZ-${country}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const id = generatePreauth({
+      customerId,
+      vehicleId,
+      amount,
+      country,
+      rentalDays,
+      reservationCode,
+    });
+
+    const created = useStore.getState().preauths.find((p) => p.id === id);
+    const customer = customers.find((c) => c.id === customerId);
+    const vehicle = vehicles.find((v) => v.id === vehicleId);
+    if (created && customer && vehicle) {
+      setLastOp({
+        id,
+        customerName: customer.fullName,
+        vehicleModel: vehicle.model,
+        plate: vehicle.plate,
+        amount,
+        country,
+        createdAt: created.createdAt,
+      });
+    }
+
+    // Reset del formulario tras 1.5s (la card de confirmación queda visible).
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+    resetTimer.current = setTimeout(() => {
+      setCustomerId('');
+      setVehicleId('');
+      setAmount(null);
+      setRentalDays(3);
+    }, 1500);
+  };
+
+  useEffect(
+    () => () => {
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+    },
+    [],
+  );
+
+  return (
+    <div className="flex min-h-full flex-col">
+      <BrandHeader variant="pos" branch={branch} branches={BRANCHES[country]} onBranchChange={setBranch} />
+
+      <main className="mx-auto w-full max-w-[720px] flex-1 px-6 py-8">
+        <div className="mb-6">
+          <h2 className="font-display text-2xl font-bold text-slate-900">Terminal de sucursal</h2>
+          <p className="text-sm text-muted">
+            Generá la preautorización cuando el cliente retira el {brand.vehicleLabel.toLowerCase()}.
+          </p>
+        </div>
+
+        {/* Card: Nueva preautorización */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 className="mb-4 font-display text-lg font-bold text-slate-900">Nueva preautorización</h3>
+
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="customer" className="mb-1 block text-sm font-medium text-slate-700">
+                Cliente
+              </label>
+              <select
+                id="customer"
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-ini focus:ring-2 focus:ring-ini/30"
+              >
+                <option value="">Seleccionar cliente…</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.fullName} · {c.documentId}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="vehicle" className="mb-1 block text-sm font-medium text-slate-700">
+                {brand.vehicleLabel} · {branch}
+              </label>
+              <select
+                id="vehicle"
+                value={vehicleId}
+                onChange={(e) => setVehicleId(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-ini focus:ring-2 focus:ring-ini/30"
+              >
+                <option value="">Seleccionar {brand.vehicleLabel.toLowerCase()}…</option>
+                {branchVehicles.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.model} · {v.plate}
+                  </option>
+                ))}
+              </select>
+              {branchVehicles.length === 0 && (
+                <p className="mt-1 text-xs text-muted">No hay unidades cargadas en esta sucursal.</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="amount" className="mb-1 block text-sm font-medium text-slate-700">
+                  Monto a preautorizar
+                </label>
+                <MoneyInput id="amount" value={amount} onChange={setAmount} country={country} />
+              </div>
+              <div>
+                <label htmlFor="days" className="mb-1 block text-sm font-medium text-slate-700">
+                  Días de alquiler
+                </label>
+                <input
+                  id="days"
+                  type="number"
+                  min={1}
+                  value={rentalDays}
+                  onChange={(e) => setRentalDays(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-lg font-semibold tabular-nums text-slate-900 outline-none transition focus:border-ini focus:ring-2 focus:ring-ini/30"
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={invalid}
+              onClick={handleGenerate}
+              className="w-full rounded-xl bg-hertz-yellow px-4 py-3.5 font-display text-base font-bold text-black shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Generar preautorización
+            </button>
+          </div>
+        </section>
+
+        {/* Card: Última operación */}
+        {lastOp && (
+          <section className="mt-5 animate-fade-in rounded-2xl border-2 border-success/40 bg-green-50/60 p-6">
+            <div className="mb-3 flex items-center gap-2 text-success">
+              <CheckCircleIcon className="h-6 w-6" />
+              <h3 className="font-display text-lg font-bold">Preautorización generada</h3>
+            </div>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <dt className="text-muted">ID</dt>
+              <dd className="text-right font-mono font-semibold text-slate-800">{lastOp.id}</dd>
+              <dt className="text-muted">Cliente</dt>
+              <dd className="text-right font-semibold text-slate-800">{lastOp.customerName}</dd>
+              <dt className="text-muted">{brand.vehicleLabel}</dt>
+              <dd className="text-right font-semibold text-slate-800">
+                {lastOp.vehicleModel} · {lastOp.plate}
+              </dd>
+              <dt className="text-muted">Monto</dt>
+              <dd className="text-right font-display text-base font-bold text-slate-900">
+                {formatCurrency(lastOp.amount, lastOp.country)}
+              </dd>
+              <dt className="text-muted">Hora</dt>
+              <dd className="text-right font-semibold text-slate-800">
+                {formatTime(lastOp.createdAt, lastOp.country)}
+              </dd>
+            </dl>
+            <p className="mt-4 rounded-lg bg-white/70 px-3 py-2 text-center text-xs font-medium text-success">
+              Ya visible en el Dashboard, en tiempo real.
+            </p>
+          </section>
+        )}
+      </main>
+
+      <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-muted">
+        Tecnología <span className="font-semibold text-ini">INI</span> · Preautorizaciones
+      </footer>
+    </div>
+  );
+}
