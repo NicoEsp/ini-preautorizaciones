@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { brand, countryMeta } from '../config/brand';
 import { useStore } from '../state/store';
 import type { Preauth } from '../state/types';
-import { daysUntil, formatCurrency, formatDayMonth, isReturnOverdue } from '../utils/format';
+import { addDays, daysUntil, formatCurrency, formatDayMonth, isReturnOverdue } from '../utils/format';
 import { buildSettlement } from '../utils/settlement';
 import { useNow } from '../utils/hooks';
 import { BrandHeader } from '../components/BrandHeader';
@@ -244,14 +244,15 @@ export function Dashboard() {
           ) : (
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[840px] border-collapse">
+                <table className="w-full min-w-[980px] border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50">
                       <th className={TH}>Cliente</th>
                       <th className={TH}>{brand.vehicleLabel}</th>
                       <th className={TH}>Sucursal</th>
                       <th className={`${TH} text-right`}>Monto</th>
-                      <th className={TH}>Antigüedad</th>
+                      <th className={TH}>Preautorización</th>
+                      <th className={TH}>Cierre</th>
                       <th className={TH}>Estado</th>
                       <th className={`${TH} text-right`}>Acciones</th>
                     </tr>
@@ -284,7 +285,20 @@ export function Dashboard() {
                             {formatCurrency(p.amount, p.country)}
                           </td>
                           <td className={TD}>
-                            <RelativeTime iso={p.createdAt} country={p.country} />
+                            <div className="text-slate-800">{formatDayMonth(p.createdAt, p.country)}</div>
+                            <div className="text-xs text-muted">
+                              <RelativeTime iso={p.createdAt} country={p.country} />
+                            </div>
+                          </td>
+                          <td className={TD}>
+                            {p.metadata ? (
+                              <div className={overdue ? 'font-semibold text-danger' : 'text-slate-800'}>
+                                {formatDayMonth(addDays(p.createdAt, p.metadata.rentalDays), p.country)}
+                                {overdue && <div className="text-xs font-medium">vencido</div>}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
                           </td>
                           <td className={TD}>
                             <div className="flex flex-wrap items-center gap-1.5">

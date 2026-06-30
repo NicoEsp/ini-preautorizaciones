@@ -1,6 +1,6 @@
 import { brand } from '../config/brand';
 import type { Customer, Preauth, Vehicle } from '../state/types';
-import { formatCurrency, formatDateTime } from '../utils/format';
+import { addDays, formatCurrency, formatDateTime } from '../utils/format';
 import { StatusBadge } from './Badge';
 
 type Props = {
@@ -72,7 +72,16 @@ export function PreauthCard({ preauth, customer, vehicle, variant = 'full' }: Pr
                 }
               />
             )}
-            <Row label="Creada" value={formatDateTime(preauth.createdAt, preauth.country)} />
+            <Row label="Preautorización" value={formatDateTime(preauth.createdAt, preauth.country)} />
+            {preauth.metadata && (
+              <Row
+                label="Cierre"
+                value={formatDateTime(
+                  addDays(preauth.createdAt, preauth.metadata.rentalDays),
+                  preauth.country,
+                )}
+              />
+            )}
             {preauth.resolvedAt && (
               <Row label="Resuelta" value={formatDateTime(preauth.resolvedAt, preauth.country)} />
             )}
