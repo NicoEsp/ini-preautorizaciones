@@ -1,36 +1,36 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BRANCHES, brand } from '../config/brand';
 import { useStore } from '../state/store';
-import { formatCurrency, formatTime } from '../utils/format';
+import { formatCurrency } from '../utils/format';
 import { BrandHeader } from '../components/BrandHeader';
 import { MoneyInput } from '../components/MoneyInput';
 import { CheckCircleIcon } from '../components/icons';
 
-type LastOp = {
-  id: string;
+// Canal WEB = pre-reserva. NO toma el hold: el cliente reserva online y la
+// preautorización (con verificación de identidad) se toma en el POS/Terminal.
+type PreReserva = {
+  code: string;
   customerName: string;
   vehicleModel: string;
   plate: string;
-  amount: number;
+  estimatedAmount: number;
   country: 'AR' | 'CL';
-  createdAt: string;
+  branch: string;
 };
 
 export function POS() {
   const country = useStore((s) => s.country);
   const customers = useStore((s) => s.customers);
   const vehicles = useStore((s) => s.vehicles);
-  const generatePreauth = useStore((s) => s.generatePreauth);
 
   const [branch, setBranch] = useState(BRANCHES[country][0]);
   const [customerId, setCustomerId] = useState('');
   const [vehicleId, setVehicleId] = useState('');
   const [amount, setAmount] = useState<number | null>(null);
   const [rentalDays, setRentalDays] = useState(3);
-  const [lastOp, setLastOp] = useState<LastOp | null>(null);
+  const [lastReserva, setLastReserva] = useState<PreReserva | null>(null);
   const resetTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  // Al cambiar de país, reseteamos sucursal y vehículo (cambian las opciones).
   useEffect(() => {
     setBranch(BRANCHES[country][0]);
     setVehicleId('');
@@ -43,34 +43,22 @@ export function POS() {
 
   const invalid = !customerId || !vehicleId || amount === null || amount <= 0 || rentalDays < 1;
 
-  const handleGenerate = () => {
+  const handleReserve = () => {
     if (invalid || amount === null) return;
-    const reservationCode = `HZ-${country}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const id = generatePreauth({
-      customerId,
-      vehicleId,
-      amount,
-      country,
-      rentalDays,
-      reservationCode,
-    });
-
-    const created = useStore.getState().preauths.find((p) => p.id === id);
     const customer = customers.find((c) => c.id === customerId);
     const vehicle = vehicles.find((v) => v.id === vehicleId);
-    if (created && customer && vehicle) {
-      setLastOp({
-        id,
-        customerName: customer.fullName,
-        vehicleModel: vehicle.model,
-        plate: vehicle.plate,
-        amount,
-        country,
-        createdAt: created.createdAt,
-      });
-    }
+    if (!customer || !vehicle) return;
+    // Pre-reserva: NO se genera preautorización (el hold se toma en sucursal).
+    setLastReserva({
+      code: `HZ-${country}-${Math.floor(1000 + Math.random() * 9000)}`,
+      customerName: customer.fullName,
+      vehicleModel: vehicle.model,
+      plate: vehicle.plate,
+      estimatedAmount: amount,
+      country,
+      branch,
+    });
 
-    // Reset del formulario tras 1.5s (la card de confirmación queda visible).
     if (resetTimer.current) clearTimeout(resetTimer.current);
     resetTimer.current = setTimeout(() => {
       setCustomerId('');
@@ -93,15 +81,17 @@ export function POS() {
 
       <main className="mx-auto w-full max-w-[720px] flex-1 px-6 py-8">
         <div className="mb-6">
-          <h2 className="font-display text-2xl font-bold text-slate-900">Terminal de sucursal</h2>
+          <h2 className="font-display text-2xl font-bold text-slate-900">Pre-reserva online</h2>
           <p className="text-sm text-muted">
-            Generá la preautorización cuando el cliente retira el {brand.vehicleLabel.toLowerCase()}.
+            Canal web (hertz.com.ar): el cliente reserva el {brand.vehicleLabel.toLowerCase()}. La
+            garantía <strong>no se bloquea online</strong> — se toma en la sucursal al retirar, con
+            verificación de identidad.
           </p>
         </div>
 
-        {/* Card: Nueva preautorización */}
+        {/* Card: Nueva pre-reserva */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 font-display text-lg font-bold text-slate-900">Nueva preautorización</h3>
+          <h3 className="mb-4 font-display text-lg font-bold text-slate-900">Nueva pre-reserva</h3>
 
           <div className="space-y-4">
             <div>
@@ -148,7 +138,7 @@ export function POS() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="amount" className="mb-1 block text-sm font-medium text-slate-700">
-                  Monto a preautorizar
+                  Garantía estimada
                 </label>
                 <MoneyInput id="amount" value={amount} onChange={setAmount} country={country} />
               </div>
@@ -170,41 +160,39 @@ export function POS() {
             <button
               type="button"
               disabled={invalid}
-              onClick={handleGenerate}
+              onClick={handleReserve}
               className="w-full rounded-xl bg-hertz-yellow px-4 py-3.5 font-display text-base font-bold text-black shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Generar preautorización
+              Crear pre-reserva
             </button>
           </div>
         </section>
 
-        {/* Card: Última operación */}
-        {lastOp && (
+        {/* Card: Pre-reserva confirmada */}
+        {lastReserva && (
           <section className="mt-5 animate-fade-in rounded-2xl border-2 border-success/40 bg-green-50/60 p-6">
             <div className="mb-3 flex items-center gap-2 text-success">
               <CheckCircleIcon className="h-6 w-6" />
-              <h3 className="font-display text-lg font-bold">Preautorización generada</h3>
+              <h3 className="font-display text-lg font-bold">Pre-reserva confirmada</h3>
             </div>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-              <dt className="text-muted">ID</dt>
-              <dd className="text-right font-mono font-semibold text-slate-800">{lastOp.id}</dd>
+              <dt className="text-muted">{brand.reservationLabel}</dt>
+              <dd className="text-right font-mono font-semibold text-slate-800">{lastReserva.code}</dd>
               <dt className="text-muted">Cliente</dt>
-              <dd className="text-right font-semibold text-slate-800">{lastOp.customerName}</dd>
+              <dd className="text-right font-semibold text-slate-800">{lastReserva.customerName}</dd>
               <dt className="text-muted">{brand.vehicleLabel}</dt>
               <dd className="text-right font-semibold text-slate-800">
-                {lastOp.vehicleModel} · {lastOp.plate}
+                {lastReserva.vehicleModel} · {lastReserva.plate}
               </dd>
-              <dt className="text-muted">Monto</dt>
+              <dt className="text-muted">Sucursal de retiro</dt>
+              <dd className="text-right font-semibold text-slate-800">{lastReserva.branch}</dd>
+              <dt className="text-muted">Garantía estimada</dt>
               <dd className="text-right font-display text-base font-bold text-slate-900">
-                {formatCurrency(lastOp.amount, lastOp.country)}
-              </dd>
-              <dt className="text-muted">Hora</dt>
-              <dd className="text-right font-semibold text-slate-800">
-                {formatTime(lastOp.createdAt, lastOp.country)}
+                {formatCurrency(lastReserva.estimatedAmount, lastReserva.country)}
               </dd>
             </dl>
             <p className="mt-4 rounded-lg bg-white/70 px-3 py-2 text-center text-xs font-medium text-success">
-              Ya visible en el Dashboard, en tiempo real.
+              La preautorización se toma en la sucursal al retirar, con verificación de identidad.
             </p>
           </section>
         )}

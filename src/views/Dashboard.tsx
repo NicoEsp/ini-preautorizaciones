@@ -1,17 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { brand, countryMeta } from '../config/brand';
 import { useStore } from '../state/store';
 import type { Preauth } from '../state/types';
-import { formatCurrency, isReturnOverdue } from '../utils/format';
+import { addDays, daysUntil, formatCurrency, formatDayMonth, isReturnOverdue } from '../utils/format';
+import { buildSettlement } from '../utils/settlement';
 import { useNow } from '../utils/hooks';
 import { BrandHeader } from '../components/BrandHeader';
 import { ActionDrawer } from '../components/ActionDrawer';
+import { Acreditaciones } from '../components/Acreditaciones';
 import { AdditionalCharge } from './AdditionalCharge';
 import { Badge, ChargeStatusBadge, StatusBadge } from '../components/Badge';
 import { RelativeTime } from '../components/RelativeTime';
 import { ChevronRightIcon, CopyIcon, PlusIcon } from '../components/icons';
 
-type Tab = 'activas' | 'historial' | 'cobros';
+type Tab = 'activas' | 'historial' | 'cobros' | 'acreditaciones';
 
 const TH = 'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted';
 const TD = 'px-4 py-3 text-sm text-slate-700 align-middle';
@@ -89,7 +91,6 @@ export function Dashboard() {
   const markSeen = useStore((s) => s.markSeen);
 
   const confirmPreauth = useStore((s) => s.confirmPreauth);
-  const modifyPreauth = useStore((s) => s.modifyPreauth);
   const voidPreauth = useStore((s) => s.voidPreauth);
   const createPaymentLink = useStore((s) => s.createPaymentLink);
   const chargeWithToken = useStore((s) => s.chargeWithToken);
@@ -141,9 +142,20 @@ export function Dashboard() {
   }, [tab, unseenCount, markSeen]);
 
   const committedSum = activeList.reduce((s, p) => s + p.amount, 0);
-  const settlementSum = historyList
-    .filter((p) => p.status !== 'voided')
-    .reduce((s, p) => s + (p.finalAmount ?? p.amount), 0);
+
+  const settlementBatches = useMemo(
+    () => buildSettlement(preauths, charges, country),
+    [preauths, charges, country],
+  );
+  const settlementCount = settlementBatches.reduce((n, b) => n + b.items.length, 0);
+  const startOfTodayMs = (() => {
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  })();
+  const nextBatch = settlementBatches
+    .filter((b) => new Date(b.creditDate).getTime() >= startOfTodayMs)
+    .sort((a, b) => a.creditDate.localeCompare(b.creditDate))[0];
 
   const selectedPreauth = selectedId ? preauths.find((p) => p.id === selectedId) : undefined;
   const chargePreauth = chargeId ? preauths.find((p) => p.id === chargeId) : undefined;
@@ -205,16 +217,21 @@ export function Dashboard() {
           />
           <StatCard
             label="Próxima acreditación"
-            value={settlementSum > 0 ? formatCurrency(settlementSum, country) : '—'}
-            sub="se acredita en 10 días"
+            value={nextBatch ? formatCurrency(nextBatch.net, country) : '—'}
+            sub={
+              nextBatch
+                ? `${formatDayMonth(nextBatch.creditDate, country)} · en ${daysUntil(nextBatch.creditDate, now)} días`
+                : 'sin pendientes'
+            }
           />
         </div>
 
         {/* Tabs */}
-        <div className="mb-4 flex items-center gap-6 border-b border-slate-200" role="tablist">
+        <div className="mb-4 flex flex-wrap items-center gap-6 border-b border-slate-200" role="tablist">
           <TabButton label="Activas" count={activeList.length} active={tab === 'activas'} onClick={() => setTab('activas')} />
           <TabButton label="Historial" count={historyList.length} active={tab === 'historial'} onClick={() => setTab('historial')} />
           <TabButton label="Cobros adicionales" count={chargeList.length} active={tab === 'cobros'} onClick={() => setTab('cobros')} />
+          <TabButton label="Acreditaciones" count={settlementCount} active={tab === 'acreditaciones'} onClick={() => setTab('acreditaciones')} />
         </div>
 
         {/* --- TAB ACTIVAS --- */}
@@ -227,14 +244,15 @@ export function Dashboard() {
           ) : (
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[840px] border-collapse">
+                <table className="w-full min-w-[980px] border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50">
                       <th className={TH}>Cliente</th>
                       <th className={TH}>{brand.vehicleLabel}</th>
                       <th className={TH}>Sucursal</th>
                       <th className={`${TH} text-right`}>Monto</th>
-                      <th className={TH}>Antigüedad</th>
+                      <th className={TH}>Preautorización</th>
+                      <th className={TH}>Cierre</th>
                       <th className={TH}>Estado</th>
                       <th className={`${TH} text-right`}>Acciones</th>
                     </tr>
@@ -267,7 +285,20 @@ export function Dashboard() {
                             {formatCurrency(p.amount, p.country)}
                           </td>
                           <td className={TD}>
-                            <RelativeTime iso={p.createdAt} country={p.country} />
+                            <div className="text-slate-800">{formatDayMonth(p.createdAt, p.country)}</div>
+                            <div className="text-xs text-muted">
+                              <RelativeTime iso={p.createdAt} country={p.country} />
+                            </div>
+                          </td>
+                          <td className={TD}>
+                            {p.metadata ? (
+                              <div className={overdue ? 'font-semibold text-danger' : 'text-slate-800'}>
+                                {formatDayMonth(addDays(p.createdAt, p.metadata.rentalDays), p.country)}
+                                {overdue && <div className="text-xs font-medium">vencido</div>}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
                           </td>
                           <td className={TD}>
                             <div className="flex flex-wrap items-center gap-1.5">
@@ -303,8 +334,8 @@ export function Dashboard() {
                     <tr className="border-b border-slate-200 bg-slate-50">
                       <th className={TH}>Cliente</th>
                       <th className={TH}>{brand.vehicleLabel}</th>
-                      <th className={`${TH} text-right`}>Monto original</th>
-                      <th className={`${TH} text-right`}>Monto final</th>
+                      <th className={`${TH} text-right`}>Bloqueado</th>
+                      <th className={`${TH} text-right`}>Cobrado</th>
                       <th className={TH}>Estado</th>
                       <th className={TH}>Resuelta</th>
                       <th className={`${TH} text-right`}>Acciones</th>
@@ -315,46 +346,70 @@ export function Dashboard() {
                       const customer = customersById[p.customerId];
                       const vehicle = vehiclesById[p.vehicleId];
                       const isVoided = p.status === 'voided';
+                      const fa = p.finalAmount;
                       return (
-                        <tr key={p.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                          <td className={TD}>
-                            <div className="font-semibold text-slate-900">{customer?.fullName}</div>
-                            <div className="text-xs text-muted">{customer?.documentId}</div>
-                          </td>
-                          <td className={TD}>
-                            <div className="font-medium text-slate-800">{vehicle?.model}</div>
-                            <div className="text-xs text-muted">{vehicle?.plate}</div>
-                          </td>
-                          <td className={`${TD} text-right tabular-nums`}>
-                            {formatCurrency(p.amount, p.country)}
-                          </td>
-                          <td className={`${TD} text-right font-semibold tabular-nums`}>
-                            {typeof p.finalAmount === 'number' ? (
-                              <span className={p.status === 'modified' ? 'text-warn' : 'text-slate-900'}>
-                                {formatCurrency(p.finalAmount, p.country)}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
-                          <td className={TD}>
-                            <StatusBadge status={p.status} />
-                          </td>
-                          <td className={TD}>
-                            {p.resolvedAt ? <RelativeTime iso={p.resolvedAt} country={p.country} /> : '—'}
-                          </td>
-                          <td className={`${TD} text-right`}>
-                            <button
-                              type="button"
-                              disabled={isVoided}
-                              title={isVoided ? 'No disponible para anuladas' : undefined}
-                              onClick={() => openCharge(p)}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-ini/40 bg-white px-3 py-1.5 text-sm font-semibold text-ini transition hover:bg-ini-light disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300 disabled:hover:bg-white"
-                            >
-                              <PlusIcon /> Cobro adicional
-                            </button>
-                          </td>
-                        </tr>
+                        <Fragment key={p.id}>
+                          <tr className={`hover:bg-slate-50 ${p.reversal ? '' : 'border-b border-slate-100 last:border-0'}`}>
+                            <td className={TD}>
+                              <div className="font-semibold text-slate-900">{customer?.fullName}</div>
+                              <div className="text-xs text-muted">{customer?.documentId}</div>
+                            </td>
+                            <td className={TD}>
+                              <div className="font-medium text-slate-800">{vehicle?.model}</div>
+                              <div className="text-xs text-muted">{vehicle?.plate}</div>
+                            </td>
+                            <td className={`${TD} text-right tabular-nums`}>
+                              {formatCurrency(p.amount, p.country)}
+                            </td>
+                            <td className={`${TD} text-right tabular-nums`}>
+                              {typeof fa === 'number' ? (
+                                <div>
+                                  <span
+                                    className={`font-semibold ${
+                                      fa > p.amount ? 'text-warn' : fa < p.amount ? 'text-success' : 'text-slate-900'
+                                    }`}
+                                  >
+                                    {formatCurrency(fa, p.country)}
+                                  </span>
+                                  {fa !== p.amount && (
+                                    <div className={`text-xs ${fa > p.amount ? 'text-warn' : 'text-success'}`}>
+                                      {fa > p.amount ? '+' : '−'}
+                                      {formatCurrency(Math.abs(fa - p.amount), p.country)}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className={TD}>
+                              <StatusBadge status={p.status} />
+                            </td>
+                            <td className={TD}>
+                              {p.resolvedAt ? <RelativeTime iso={p.resolvedAt} country={p.country} /> : '—'}
+                            </td>
+                            <td className={`${TD} text-right`}>
+                              <button
+                                type="button"
+                                disabled={isVoided}
+                                title={isVoided ? 'No disponible para anuladas' : undefined}
+                                onClick={() => openCharge(p)}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-ini/40 bg-white px-3 py-1.5 text-sm font-semibold text-ini transition hover:bg-ini-light disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300 disabled:hover:bg-white"
+                              >
+                                <PlusIcon /> Cobro adicional
+                              </button>
+                            </td>
+                          </tr>
+                          {p.reversal && (
+                            <tr className="border-b border-slate-100 last:border-0">
+                              <td className={`${TD} py-2 text-xs text-muted`} colSpan={7}>
+                                ↳ Reversa{' '}
+                                <span className="font-mono font-semibold text-slate-600">{p.reversal.id}</span> ·
+                                Crédito al cliente: {formatDayMonth(p.reversal.estimatedCreditDate, p.country)}
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </tbody>
@@ -435,6 +490,9 @@ export function Dashboard() {
               </div>
             </div>
           ))}
+
+        {/* --- TAB ACREDITACIONES --- */}
+        {tab === 'acreditaciones' && <Acreditaciones />}
       </main>
 
       {/* Drawer de acciones */}
@@ -444,22 +502,13 @@ export function Dashboard() {
         customer={selectedPreauth ? customersById[selectedPreauth.customerId] : undefined}
         vehicle={selectedPreauth ? vehiclesById[selectedPreauth.vehicleId] : undefined}
         onClose={() => setDrawerOpen(false)}
-        onConfirm={() =>
+        onConfirm={(finalAmount) =>
           selectedPreauth &&
           resolveWithAnim(selectedPreauth.id, () =>
-            confirmPreauth({ preauthId: selectedPreauth.id, finalAmount: selectedPreauth.amount }),
+            confirmPreauth({ preauthId: selectedPreauth.id, finalAmount }),
           )
         }
-        onModify={(newAmount) =>
-          selectedPreauth &&
-          resolveWithAnim(selectedPreauth.id, () =>
-            modifyPreauth({ preauthId: selectedPreauth.id, newAmount }),
-          )
-        }
-        onVoid={() =>
-          selectedPreauth &&
-          resolveWithAnim(selectedPreauth.id, () => voidPreauth({ preauthId: selectedPreauth.id }))
-        }
+        onVoid={() => voidPreauth({ preauthId: selectedPreauth!.id })}
       />
 
       {/* Modal de cobro adicional */}

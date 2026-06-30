@@ -1,10 +1,13 @@
 import { useEffect } from 'react';
 import { useHashRoute } from './utils/hooks';
 import { POS } from './views/POS';
+import { Terminal } from './views/Terminal';
 import { Dashboard } from './views/Dashboard';
 
-// Ruteo por hash: #/pos (sucursal) y #/dashboard (back office).
-// Se abren en tabs separados del navegador para la demo en vivo.
+// Ruteo por hash:
+//   #/pos        -> Checkout web (canal online, hertz.com.ar)
+//   #/terminal   -> Terminal de sucursal (canal físico, estilo Clover)
+//   #/dashboard  -> Back office (gestión)
 export default function App() {
   const route = useHashRoute();
 
@@ -13,5 +16,6 @@ export default function App() {
   }, []);
 
   if (route.startsWith('/pos')) return <POS />;
+  if (route.startsWith('/terminal')) return <Terminal />;
   return <Dashboard />;
 }
