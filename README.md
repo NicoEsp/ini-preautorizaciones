@@ -23,12 +23,16 @@ Abrí **dos pestañas** del navegador (clave para la demo en vivo): una vista de
 
 | Vista | URL | Canal / Branding |
 | --- | --- | --- |
-| **Checkout** | http://localhost:5173/#/pos | Web (hertz.com.ar) · Hertz amarillo |
-| **Terminal** | http://localhost:5173/#/terminal | Sucursal física (estilo Clover) · Hertz |
+| **Pre-reserva** | http://localhost:5173/#/pos | Web (hertz.com.ar) · Hertz amarillo · **no toma el hold** |
+| **Terminal** | http://localhost:5173/#/terminal | Sucursal física (estilo Clover) · Hertz · **acá se toma la preautorización** |
 | **Dashboard** | http://localhost:5173/#/dashboard | Back office · INI violeta, Hertz co-brand |
 
-El pill arriba a la derecha (Checkout / Terminal / Dashboard) permite saltar entre vistas
+El pill arriba a la derecha (Pre-reserva / Terminal / Dashboard) permite saltar entre vistas
 sin tipear la URL.
+
+> **Captura presencial (seguridad):** el canal web sólo deja la pre-reserva; la
+> preautorización —el bloqueo real— se toma en el POS/Terminal con verificación de
+> identidad. No se captura un hold online.
 
 > Build de producción: `npm run build` y luego `npm run preview`.
 
@@ -59,7 +63,8 @@ sin tipear la URL.
 ## Qué hay que mirar (lo que no puede fallar)
 
 - **Sync entre tabs en vivo** vía `BroadcastChannel` (fallback a `storage` event si no
-  está disponible). Generar en Checkout o Terminal dispara la aparición + pulse en el Dashboard.
+  está disponible). Tomar la preauth en el **Terminal** dispara la aparición + pulse en el
+  Dashboard. (La Pre-reserva web no genera hold, por diseño.)
 - **2 acciones sobre cada preauth activa**: **Confirmar el pago** (monto editable: >, =, o <
   al bloqueado, con feedback de color) y **Anular** (dispara reversa a la tarjeta).
 - **Terminal estilo Clover**: flujo de 4 pasos (monto → vehículo → cliente → tarjeta) +
@@ -91,8 +96,8 @@ src/
     hooks.ts     # useNow (reloj 30s), router por hash
   components/    # BrandHeader, ActionDrawer, Acreditaciones, PreauthCard, MoneyInput…
   views/
-    POS.tsx              # Checkout web (canal online)
-    Terminal.tsx         # Terminal de sucursal estilo Clover (state machine)
+    POS.tsx              # Pre-reserva web (canal online, sin hold)
+    Terminal.tsx         # Terminal de sucursal estilo Clover — toma la preauth (state machine)
     Dashboard.tsx        # Activas / Historial / Cobros / Acreditaciones
     AdditionalCharge.tsx # modal de cobro adicional
   App.tsx        # ruteo por hash (#/pos, #/terminal, #/dashboard)

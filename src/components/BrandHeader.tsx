@@ -26,7 +26,7 @@ function RoleSwitcher({ tone }: { tone: 'light' | 'yellow' }) {
       value={active}
       onChange={(v) => navigate(v === 'checkout' ? '/pos' : v === 'terminal' ? '/terminal' : '/dashboard')}
       options={[
-        { value: 'checkout', label: 'Checkout' },
+        { value: 'checkout', label: 'Pre-reserva' },
         { value: 'terminal', label: 'Terminal' },
         { value: 'dashboard', label: 'Dashboard' },
       ]}
