@@ -97,6 +97,7 @@ export function Terminal() {
   const [cardError, setCardError] = useState('');
 
   const [procMsg, setProcMsg] = useState(0);
+  const [printed, setPrinted] = useState(false);
   const [result, setResult] = useState<{
     preauthId: string;
     customerName: string;
@@ -157,6 +158,7 @@ export function Terminal() {
     setSaveCard(true);
     setCardError('');
     setResult(null);
+    setPrinted(false);
   }
 
   // Secuencia de procesamiento -> aprobado.
@@ -544,9 +546,15 @@ export function Terminal() {
                   />
                 </div>
                 <div className="mt-1 w-full space-y-2">
-                  <button type="button" onClick={() => alert('Comprobante impreso (mockup)')} className={ghostBtn + ' w-full'}>
-                    Imprimir comprobante
-                  </button>
+                  {printed ? (
+                    <div className="flex w-full items-center justify-center gap-2 rounded-xl border border-success/40 bg-green-50 px-4 py-3 text-sm font-semibold text-success">
+                      <CheckCircleIcon className="h-4 w-4" /> Comprobante enviado por email
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => setPrinted(true)} className={ghostBtn + ' w-full'}>
+                      Imprimir comprobante
+                    </button>
+                  )}
                   <button type="button" onClick={reset} className={primaryBtn}>
                     Nueva operación
                   </button>
