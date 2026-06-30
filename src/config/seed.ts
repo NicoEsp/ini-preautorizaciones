@@ -6,6 +6,7 @@ import type {
   Preauth,
   Vehicle,
 } from '../state/types';
+import { addBusinessDays } from '../utils/format';
 
 // ---------------------------------------------------------------------------
 // DATOS SEED — ~12 preauths para que el dashboard se vea "vivo".
@@ -184,8 +185,9 @@ export function buildSeed(now: number): DataState {
       metadata: { rentalDays: 7, reservationCode: 'HZ-AR-7651' },
     },
 
-    // --- HISTORIAL (3) — confirmed / modified / voided ---
+    // --- HISTORIAL — cobradas (=, <, >) y anulada con reversa ---
     {
+      // Cobro exacto al bloqueado
       id: 'PA-AR-001230',
       customerId: 'c1', // María José tiene tarjeta tokenizada -> sirve para cobro adicional
       vehicleId: 'v1',
@@ -198,18 +200,33 @@ export function buildSeed(now: number): DataState {
       metadata: { rentalDays: 3, reservationCode: 'HZ-AR-7588' },
     },
     {
+      // Cobró MÁS que el bloqueado (daños)
+      id: 'PA-AR-001228',
+      customerId: 'c2',
+      vehicleId: 'v2',
+      amount: 300000,
+      country: 'AR',
+      status: 'confirmed',
+      createdAt: ago(2 * D),
+      resolvedAt: ago(18 * H),
+      finalAmount: 380000,
+      metadata: { rentalDays: 2, reservationCode: 'HZ-AR-7560' },
+    },
+    {
+      // Cobró MENOS que el bloqueado (se liberó la diferencia)
       id: 'PA-CL-000820',
       customerId: 'c7',
       vehicleId: 'v9',
       amount: 500000,
       country: 'CL',
-      status: 'modified',
+      status: 'confirmed',
       createdAt: ago(3 * D),
       resolvedAt: ago(2 * D),
       finalAmount: 450000,
       metadata: { rentalDays: 4, reservationCode: 'HZ-CL-2120' },
     },
     {
+      // Anulada: reversa enviada a la tarjeta
       id: 'PA-AR-001225',
       customerId: 'c4',
       vehicleId: 'v4',
@@ -218,7 +235,38 @@ export function buildSeed(now: number): DataState {
       status: 'voided',
       createdAt: ago(4 * D),
       resolvedAt: ago(3 * D),
+      reversal: {
+        id: 'REV-AR-00007781',
+        processedAt: ago(3 * D),
+        estimatedCreditDate: addBusinessDays(ago(3 * D), 2),
+      },
       metadata: { rentalDays: 2, reservationCode: 'HZ-AR-7501' },
+    },
+    {
+      // Antigua -> ya acreditada (AR)
+      id: 'PA-AR-001215',
+      customerId: 'c3',
+      vehicleId: 'v3',
+      amount: 450000,
+      country: 'AR',
+      status: 'confirmed',
+      createdAt: ago(16 * D),
+      resolvedAt: ago(14 * D),
+      finalAmount: 450000,
+      metadata: { rentalDays: 4, reservationCode: 'HZ-AR-7402' },
+    },
+    {
+      // Antigua -> ya acreditada (CL)
+      id: 'PA-CL-000812',
+      customerId: 'c5',
+      vehicleId: 'v7',
+      amount: 380000,
+      country: 'CL',
+      status: 'confirmed',
+      createdAt: ago(22 * D),
+      resolvedAt: ago(20 * D),
+      finalAmount: 360000,
+      metadata: { rentalDays: 3, reservationCode: 'HZ-CL-2044' },
     },
   ];
 

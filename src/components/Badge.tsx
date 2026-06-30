@@ -32,8 +32,7 @@ export function Badge({
 
 const PREAUTH_MAP: Record<PreauthStatus, { label: string; tone: Tone }> = {
   active: { label: 'Activa', tone: 'ini' },
-  confirmed: { label: 'Confirmada', tone: 'success' },
-  modified: { label: 'Modificada', tone: 'warn' },
+  confirmed: { label: 'Cobrada', tone: 'success' },
   voided: { label: 'Anulada', tone: 'muted' },
 };
 

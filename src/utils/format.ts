@@ -53,3 +53,35 @@ export function isReturnOverdue(preauth: Preauth, now: number): boolean {
   const dueAt = new Date(preauth.createdAt).getTime() + preauth.metadata.rentalDays * 86_400_000;
   return dueAt < now;
 }
+
+/** Fecha corta tipo "8 de julio" (sin año), locale del país. */
+export function formatDayMonth(iso: string, country: Country): string {
+  return new Intl.DateTimeFormat(countryMeta[country].locale, {
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date(iso));
+}
+
+/** Suma `n` días hábiles a una fecha (saltea sábados y domingos). */
+export function addBusinessDays(iso: string, n: number): string {
+  const d = new Date(iso);
+  let added = 0;
+  while (added < n) {
+    d.setDate(d.getDate() + 1);
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) added++;
+  }
+  return d.toISOString();
+}
+
+/** Suma `n` días calendario a una fecha. */
+export function addDays(iso: string, n: number): string {
+  const d = new Date(iso);
+  d.setDate(d.getDate() + n);
+  return d.toISOString();
+}
+
+/** Días restantes (calendario, redondeo hacia arriba) entre ahora y una fecha futura. */
+export function daysUntil(iso: string, now: number): number {
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - now) / 86_400_000));
+}

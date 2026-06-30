@@ -93,9 +93,10 @@ export function POS() {
 
       <main className="mx-auto w-full max-w-[720px] flex-1 px-6 py-8">
         <div className="mb-6">
-          <h2 className="font-display text-2xl font-bold text-slate-900">Terminal de sucursal</h2>
+          <h2 className="font-display text-2xl font-bold text-slate-900">Checkout online</h2>
           <p className="text-sm text-muted">
-            Generá la preautorización cuando el cliente retira el {brand.vehicleLabel.toLowerCase()}.
+            Canal web (hertz.com.ar): el cliente garantiza su reserva al reservar el{' '}
+            {brand.vehicleLabel.toLowerCase()}.
           </p>
         </div>
 
