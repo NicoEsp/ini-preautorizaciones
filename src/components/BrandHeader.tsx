@@ -14,15 +14,20 @@ type Props = {
 
 function RoleSwitcher({ tone }: { tone: 'light' | 'yellow' }) {
   const route = useHashRoute();
-  const active = route.startsWith('/pos') ? 'pos' : 'dashboard';
+  const active = route.startsWith('/pos')
+    ? 'checkout'
+    : route.startsWith('/terminal')
+      ? 'terminal'
+      : 'dashboard';
   return (
     <Segmented
       ariaLabel="Cambiar de vista"
       tone={tone}
       value={active}
-      onChange={(v) => navigate(v === 'pos' ? '/pos' : '/dashboard')}
+      onChange={(v) => navigate(v === 'checkout' ? '/pos' : v === 'terminal' ? '/terminal' : '/dashboard')}
       options={[
-        { value: 'pos', label: 'POS' },
+        { value: 'checkout', label: 'Checkout' },
+        { value: 'terminal', label: 'Terminal' },
         { value: 'dashboard', label: 'Dashboard' },
       ]}
     />

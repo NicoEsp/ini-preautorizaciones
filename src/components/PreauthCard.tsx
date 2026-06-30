@@ -60,9 +60,13 @@ export function PreauthCard({ preauth, customer, vehicle, variant = 'full' }: Pr
             />
             {typeof preauth.finalAmount === 'number' && preauth.finalAmount !== preauth.amount && (
               <Row
-                label="Monto final"
+                label="Monto cobrado"
                 value={
-                  <span className="font-display text-lg font-bold text-warn">
+                  <span
+                    className={`font-display text-lg font-bold ${
+                      preauth.finalAmount > preauth.amount ? 'text-warn' : 'text-success'
+                    }`}
+                  >
                     {formatCurrency(preauth.finalAmount, preauth.country)}
                   </span>
                 }

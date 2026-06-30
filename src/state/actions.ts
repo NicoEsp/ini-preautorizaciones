@@ -1,4 +1,4 @@
-import type { AdditionalCharge, DataState, Preauth } from './types';
+import type { AdditionalCharge, Customer, DataState, Preauth, Reversal } from './types';
 
 // ---------------------------------------------------------------------------
 // FUNCIONES PURAS — reciben el estado de datos + parámetros y devuelven el
@@ -41,54 +41,36 @@ export function generatePreauth(
   return { ...state, preauths: [preauth, ...state.preauths] };
 }
 
-/** Núcleo compartido por confirmar/modificar: aplica el monto final y deriva el status. */
-function resolvePreauth(
-  state: DataState,
-  preauthId: string,
-  finalAmount: number,
-  resolvedAt: string,
-): DataState {
-  const p = findPreauth(state, preauthId);
-  if (p.status !== 'active') {
-    throw new Error('La preautorización ya fue resuelta');
-  }
-  if (finalAmount > p.amount) {
-    throw new Error('El monto final no puede superar al original');
-  }
-  if (finalAmount < 0) {
-    throw new Error('El monto final no puede ser negativo');
-  }
-  // Igual al original -> confirmed. Menor -> modified.
-  const status = finalAmount < p.amount ? 'modified' : 'confirmed';
-  return {
-    ...state,
-    preauths: state.preauths.map((x) =>
-      x.id === preauthId ? { ...x, status, finalAmount, resolvedAt } : x,
-    ),
-  };
-}
-
+/**
+ * "Confirmar el pago" (feedback de Marcos): cobra cualquier monto positivo.
+ * Puede ser mayor, igual o menor al bloqueado — no hay validación de rango.
+ * `finalAmount` es la única fuente de verdad de cuánto se cobró.
+ */
 export function confirmPreauth(
   state: DataState,
   params: { preauthId: string; finalAmount: number; resolvedAt: string },
 ): DataState {
-  return resolvePreauth(state, params.preauthId, params.finalAmount, params.resolvedAt);
-}
-
-export function modifyPreauth(
-  state: DataState,
-  params: { preauthId: string; newAmount: number; resolvedAt: string },
-): DataState {
   const p = findPreauth(state, params.preauthId);
-  if (params.newAmount >= p.amount) {
-    throw new Error('Para modificar, el nuevo monto debe ser menor al original');
+  if (p.status !== 'active') {
+    throw new Error('La preautorización ya fue resuelta');
   }
-  return resolvePreauth(state, params.preauthId, params.newAmount, params.resolvedAt);
+  if (params.finalAmount <= 0) {
+    throw new Error('El monto a cobrar debe ser mayor a 0');
+  }
+  return {
+    ...state,
+    preauths: state.preauths.map((x) =>
+      x.id === params.preauthId
+        ? { ...x, status: 'confirmed', finalAmount: params.finalAmount, resolvedAt: params.resolvedAt }
+        : x,
+    ),
+  };
 }
 
+/** Anular dispara una reversa hacia la tarjeta (libera el límite del cliente). */
 export function voidPreauth(
   state: DataState,
-  params: { preauthId: string; resolvedAt: string },
+  params: { preauthId: string; resolvedAt: string; reversal: Reversal },
 ): DataState {
   const p = findPreauth(state, params.preauthId);
   if (p.status !== 'active') {
@@ -97,7 +79,9 @@ export function voidPreauth(
   return {
     ...state,
     preauths: state.preauths.map((x) =>
-      x.id === params.preauthId ? { ...x, status: 'voided', resolvedAt: params.resolvedAt } : x,
+      x.id === params.preauthId
+        ? { ...x, status: 'voided', resolvedAt: params.resolvedAt, reversal: params.reversal }
+        : x,
     ),
   };
 }
@@ -167,6 +151,24 @@ export function markChargePaid(
     ...state,
     charges: state.charges.map((c) =>
       c.id === params.chargeId ? { ...c, status: 'paid', paidAt: params.paidAt } : c,
+    ),
+  };
+}
+
+/** Alta de cliente (lo usa el Terminal cuando es un cliente nuevo). */
+export function addCustomer(state: DataState, customer: Customer): DataState {
+  return { ...state, customers: [...state.customers, customer] };
+}
+
+/** Guarda/actualiza la tarjeta tokenizada de un cliente existente. */
+export function setCustomerCard(
+  state: DataState,
+  params: { customerId: string; card: Customer['tokenizedCard'] },
+): DataState {
+  return {
+    ...state,
+    customers: state.customers.map((c) =>
+      c.id === params.customerId ? { ...c, tokenizedCard: params.card } : c,
     ),
   };
 }

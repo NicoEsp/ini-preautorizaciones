@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { Country, DataState } from './types';
+import type { Country, Customer, DataState, Reversal } from './types';
 import * as actions from './actions';
 import { brand } from '../config/brand';
 import { buildSeed, nextPreauthId } from '../config/seed';
+import { addBusinessDays } from '../utils/format';
 
 // ---------------------------------------------------------------------------
 // STORE — Zustand + persist (localStorage) + BroadcastChannel (sync entre tabs).
@@ -58,10 +59,13 @@ type Store = DataState & {
     reservationCode: string;
   }) => string;
   confirmPreauth: (p: { preauthId: string; finalAmount: number }) => void;
-  modifyPreauth: (p: { preauthId: string; newAmount: number }) => void;
-  voidPreauth: (p: { preauthId: string }) => void;
+  voidPreauth: (p: { preauthId: string }) => Reversal;
   createPaymentLink: (p: { preauthId: string; amount: number; concept: string }) => string;
   chargeWithToken: (p: { preauthId: string; amount: number; concept: string }) => Promise<void>;
+
+  // Alta de cliente / tarjeta (Terminal)
+  addCustomer: (data: Omit<Customer, 'id'>) => string;
+  setCustomerCard: (p: { customerId: string; card: Customer['tokenizedCard'] }) => void;
 
   // demo helpers
   resetDemo: () => void;
@@ -125,21 +129,21 @@ export const useStore = create<Store>()(
           commit(next);
         },
 
-        modifyPreauth: (p) => {
-          const next = actions.modifyPreauth(dataOf(get()), {
-            preauthId: p.preauthId,
-            newAmount: p.newAmount,
-            resolvedAt: nowIso(),
-          });
-          commit(next);
-        },
-
         voidPreauth: (p) => {
+          const processedAt = nowIso();
+          const country = get().preauths.find((x) => x.id === p.preauthId)?.country ?? 'AR';
+          const reversal: Reversal = {
+            id: `REV-${country}-${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`,
+            processedAt,
+            estimatedCreditDate: addBusinessDays(processedAt, 2),
+          };
           const next = actions.voidPreauth(dataOf(get()), {
             preauthId: p.preauthId,
-            resolvedAt: nowIso(),
+            resolvedAt: processedAt,
+            reversal,
           });
           commit(next);
+          return reversal;
         },
 
         createPaymentLink: (p) => {
@@ -173,6 +177,17 @@ export const useStore = create<Store>()(
             paidAt: nowIso(),
           });
           commit(paid);
+        },
+
+        addCustomer: (data) => {
+          const id = `c-${uuid8()}`;
+          const customer: Customer = { id, ...data };
+          commit(actions.addCustomer(dataOf(get()), customer));
+          return id;
+        },
+
+        setCustomerCard: (p) => {
+          commit(actions.setCustomerCard(dataOf(get()), { customerId: p.customerId, card: p.card }));
         },
 
         resetDemo: () => {

@@ -31,6 +31,10 @@ export const brand = {
 
   // Base del link de cobro simulado. NO resuelve, es texto mostrado.
   paymentLinkBase: 'https://pagos.ini.live/p/',
+
+  // Acreditaciones (settlement): plazo y comisión simulados.
+  settlementDays: 10,
+  feeRate: 0.025,
 };
 
 // Metadata por país: divisa, locale, bandera.
